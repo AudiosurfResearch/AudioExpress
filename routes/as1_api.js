@@ -3,6 +3,8 @@ var bodyParser = require('body-parser');
 var xml2js = require('xml2js');
 var router = express.Router();
 const builder = new xml2js.Builder();
+const database = require('../database');
+const { Op } = require('sequelize');
 
 router.post('/game_AttemptLogin_unicodepub64.php', function(req, res, next) {
     res.contentType('text/html');
@@ -14,35 +16,92 @@ router.post('/game_AttemptLogin_unicodepub64.php', function(req, res, next) {
     //TODO: replace hardcoded values with values from a proper database, etc.
     //We're gonna need proper auth too
     const statusString = require('crypto').createHash('md5').update("ntlr78ouqkutfc" + req.body.loginorig + "47ourol9oux").digest("hex");
-    const userInfoResponse = {
-        RESULT: {
-            $: {
-                status: statusString
-            },
-            userid: 1,
-            username: 't3stm4n',
-            locationid: 1, // locationid is the n-th element in the location list you see when registering
-            steamid: '133742069' //SteamID32, not ID64
+    (async function() {
+        console.log("Attempting login for user " + req.body.email);
+
+        var user = await database.User.findOne({
+            where: {
+                [Op.and]: [
+                    { username: req.body.email },
+                    { gamepassword: req.body.pass }
+                ]
+            }
+        });
+
+        var userInfoResponse;
+        if (user != null) {
+            userInfoResponse = {
+                RESULT: {
+                    $: {
+                        status: statusString
+                    },
+                    userid: user.userid,
+                    username: user.username,
+                    locationid: user.locationid, // locationid is the n-th element in the location list you see when registering
+                    steamid: user.steamid32 //SteamID32, not ID64
+                }
+            };
         }
-    };
-    
-    console.log("Attempting login for user " + userInfoResponse.RESULT.username);
-    res.send(builder.buildObject(userInfoResponse));
+        else {
+            userInfoResponse = {
+                RESULT: {
+                    $: {
+                        status: "failed"
+                    }
+                }
+            };
+        }
+
+        res.send(builder.buildObject(userInfoResponse));
+    })();
 });
 
 router.post('/game_fetchsongid_unicodePB.php', function(req, res, next) {
-    const personalBestResponse = {
-        RESULT: {
-            $: {
-                status: 'allgood'
-            },
-            songid: 1337, //TODO: Make it look up the song artist and name from a database to get an ID
-            pb: 690000
-        }
-    };
-
     console.log("Looking up PB of user ID " + req.body.uid + " on " + req.body.artist + " - " + req.body.song);
+
+    (async function() {
+    var song = await database.Song.findOne({
+        where: {
+            [Op.and]: [
+                { artist: req.body.artist },
+                { title: req.body.song }
+            ]
+        }
+    });
+
+    if (song == null) {
+        song = await database.Song.create({
+            title: req.body.song,
+            artist: req.body.artist,
+            //TODO: Add musicbrainzid
+        });
+    }
+
+    var pb = await database.Score.findOne({
+        where: {
+            [Op.and]: [
+                { songid: song.id },
+                { userid: req.body.userid },
+                { leagueid: req.body.league }
+            ]
+        }
+    });
+
+    var personalBestResponse;
+    if (pb != null) {
+        personalBestResponse = {
+            RESULT: {
+                $: {
+                    status: "allgood"
+                },
+                songid: song.id,
+                pb: pb.score
+            }
+        };
+    }
+
     res.send(builder.buildObject(personalBestResponse));
+    })();
 });
 
 router.post('/game_customnews_unicode2.php', function(req, res, next) {
@@ -61,21 +120,78 @@ router.post('/game_nowplaying_unicode_testing.php', function(req, res, next) {
 });
 
 router.post('/game_sendride25.php', function(req, res, next) {
-    const sendRideResponse = {
-        RESULT: {
-            $: {
-                status: 'allgood'
-            },
-            songid: req.body.songid, //TODO: Make it look up the song artist and name from a database to get an ID
+    
+
+    var user = await database.User.findOne({
+        where: {
+            [Op.and]: [
+                { username: req.body.email },
+                { gamepassword: req.body.pass }
+            ]
         }
-    };
+    });
+
+    var song = await database.Song.findOne({
+        where: {
+            [Op.and]: [
+                { artist: req.body.artist },
+                { title: req.body.song }
+            ]
+        }
+    });
+
+    var sendRideResponse;
+    if (user != null && song != null) {
+        sendRideResponse = {
+            RESULT: {
+                $: {
+                    status: 'allgood'
+                },
+                songid: song.id
+            }
+        };
+
+        var prevScore = await database.Score.findOne({
+            where: {
+                [Op.and]: [
+                    { userid: user.id },
+                    { songid: song.id },
+                    { leagueid: req.body.league }
+                ]
+            }
+        });
+
+        if (prevScore != null) {
+            prevScore.destroy();
+        }
+
+        await database.Score.create({
+            songid: song.id,
+            userid: user.id,
+            leagueid: req.body.league,
+            trackshape: req.body.trackshape,
+            density: req.body.density,
+            xstats: req.body.xstats,
+            iss: req.body.iss,
+            isj: req.body.isj
+        });
+    }
+    else {
+        sendRideResponse = {
+            RESULT: {
+                $: {
+                    status: "failed"
+                }
+            }
+        };
+    }
 
     console.log("Received ride on song " + req.body.artist + " - " + req.body.song + " with score of " + req.body.score);
     res.send(builder.buildObject(sendRideResponse));
 });
 
 router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
-    const sendRideResponse = {
+    const fetchScoresResponse = {
         RESULTS: {
             scores: [{
                 $: {
@@ -86,7 +202,7 @@ router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
                         leagueid: 1
                     },
                     ride: {
-                        username: "your_mother",
+                        username: "scoretype_0",
                         vehicleid: 1,
                         score: 6999999,
                         ridetime: 1592413531,
@@ -105,7 +221,26 @@ router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
                         leagueid: 1
                     },
                     ride: {
-                        username: "deez_nuts",
+                        username: "scoretype_1",
+                        vehicleid: 1,
+                        score: 6999999,
+                        ridetime: 1592413531,
+                        feats: "Match11",
+                        songlength: 23844,
+                        trafficcount: 179792
+                    }
+                }
+            },
+            {
+                $: {
+                    scoretype: 2
+                },
+                league:{
+                    $: {
+                        leagueid: 1
+                    },
+                    ride: {
+                        username: "scoretype_2",
                         vehicleid: 1,
                         score: 6999999,
                         ridetime: 1592413531,
@@ -118,8 +253,7 @@ router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
         }
     };
 
-    console.log("Received ride on song " + req.body.artist + " - " + req.body.song + " with score of " + req.body.score);
-    res.send(builder.buildObject(sendRideResponse));
+    res.send(builder.buildObject(fetchScoresResponse));
 });
 
 module.exports = router;
