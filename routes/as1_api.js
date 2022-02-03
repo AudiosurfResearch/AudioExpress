@@ -6,17 +6,17 @@ const builder = new xml2js.Builder();
 const database = require('../database');
 const { Op } = require('sequelize');
 
-router.post('/game_AttemptLogin_unicodepub64.php', function(req, res, next) {
+router.post('/game_AttemptLogin_unicodepub64.php', function (req, res, next) {
     res.contentType('text/html');
     res.charset = "utf-8";
     res.connection.setKeepAlive(false);
     res.shouldKeepAlive = false;
-    
+
     console.log(req.rawTrailers);
     //TODO: replace hardcoded values with values from a proper database, etc.
     //We're gonna need proper auth too
     const statusString = require('crypto').createHash('md5').update("ntlr78ouqkutfc" + req.body.loginorig + "47ourol9oux").digest("hex");
-    (async function() {
+    (async function () {
         console.log("Attempting login for user " + req.body.email);
 
         var user = await database.User.findOne({
@@ -35,7 +35,7 @@ router.post('/game_AttemptLogin_unicodepub64.php', function(req, res, next) {
                     $: {
                         status: statusString
                     },
-                    userid: user.userid,
+                    userid: user.id,
                     username: user.username,
                     locationid: user.locationid, // locationid is the n-th element in the location list you see when registering
                     steamid: user.steamid32 //SteamID32, not ID64
@@ -56,55 +56,55 @@ router.post('/game_AttemptLogin_unicodepub64.php', function(req, res, next) {
     })();
 });
 
-router.post('/game_fetchsongid_unicodePB.php', function(req, res, next) {
+router.post('/game_fetchsongid_unicodePB.php', function (req, res, next) {
     console.log("Looking up PB of user ID " + req.body.uid + " on " + req.body.artist + " - " + req.body.song);
 
-    (async function() {
-    var song = await database.Song.findOne({
-        where: {
-            [Op.and]: [
-                { artist: req.body.artist },
-                { title: req.body.song }
-            ]
-        }
-    });
-
-    if (song == null) {
-        song = await database.Song.create({
-            title: req.body.song,
-            artist: req.body.artist,
-            //TODO: Add musicbrainzid
+    (async function () {
+        var song = await database.Song.findOne({
+            where: {
+                [Op.and]: [
+                    { artist: req.body.artist },
+                    { title: req.body.song }
+                ]
+            }
         });
-    }
 
-    var pb = await database.Score.findOne({
-        where: {
-            [Op.and]: [
-                { songid: song.id },
-                { userid: req.body.userid },
-                { leagueid: req.body.league }
-            ]
+        if (song == null) {
+            song = await database.Song.create({
+                title: req.body.song,
+                artist: req.body.artist,
+                //TODO: Add musicbrainzid
+            });
         }
-    });
 
-    var personalBestResponse;
-    if (pb != null) {
-        personalBestResponse = {
+        var pb = await database.Score.findOne({
+            where: {
+                [Op.and]: [
+                    { songid: song.id },
+                    { userid: req.body.uid },
+                    { leagueid: req.body.league }
+                ]
+            }
+        });
+
+        var personalBestResponse = {
             RESULT: {
                 $: {
                     status: "allgood"
                 },
                 songid: song.id,
-                pb: pb.score
+                pb: 0
             }
         };
-    }
+        if (pb != null) {
+            personalBestResponse.RESULT.pb = pb.score;
+        }
 
-    res.send(builder.buildObject(personalBestResponse));
+        res.send(builder.buildObject(personalBestResponse));
     })();
 });
 
-router.post('/game_customnews_unicode2.php', function(req, res, next) {
+router.post('/game_customnews_unicode2.php', function (req, res, next) {
     const customNewsResponse = {
         RESULTS: {
             TEXT: "Powered by AudioExpress\nEnjoy the ride!"
@@ -115,89 +115,96 @@ router.post('/game_customnews_unicode2.php', function(req, res, next) {
     res.send(builder.buildObject(customNewsResponse));
 });
 
-router.post('/game_nowplaying_unicode_testing.php', function(req, res, next) {
+router.post('/game_nowplaying_unicode_testing.php', function (req, res, next) {
     res.send("done");
 });
 
-router.post('/game_sendride25.php', function(req, res, next) {
-    
+router.post('/game_sendride25.php', function (req, res, next) {
+    console.log("Received ride on song " + req.body.artist + " - " + req.body.song + " with score of " + req.body.score);
 
-    var user = await database.User.findOne({
-        where: {
-            [Op.and]: [
-                { username: req.body.email },
-                { gamepassword: req.body.pass }
-            ]
-        }
-    });
-
-    var song = await database.Song.findOne({
-        where: {
-            [Op.and]: [
-                { artist: req.body.artist },
-                { title: req.body.song }
-            ]
-        }
-    });
-
-    var sendRideResponse;
-    if (user != null && song != null) {
-        sendRideResponse = {
-            RESULT: {
-                $: {
-                    status: 'allgood'
-                },
-                songid: song.id
-            }
-        };
-
-        var prevScore = await database.Score.findOne({
+    (async function () {
+        var user = await database.User.findOne({
             where: {
                 [Op.and]: [
-                    { userid: user.id },
-                    { songid: song.id },
-                    { leagueid: req.body.league }
+                    { username: req.body.email },
+                    { gamepassword: req.body.pass }
                 ]
             }
         });
 
-        if (prevScore != null) {
-            prevScore.destroy();
+        var song = await database.Song.findOne({
+            where: {
+                [Op.and]: [
+                    { artist: req.body.artist },
+                    { title: req.body.song }
+                ]
+            }
+        });
+
+        var sendRideResponse;
+        if (user != null && song != null) {
+            sendRideResponse = {
+                RESULT: {
+                    $: {
+                        status: 'allgood'
+                    },
+                    songid: song.id
+                }
+            };
+
+            var prevScore = await database.Score.findOne({
+                where: {
+                    [Op.and]: [
+                        { userid: user.id },
+                        { songid: song.id },
+                        { leagueid: req.body.league }
+                    ]
+                }
+            });
+
+            if (prevScore != null) {
+                prevScore.destroy();
+            }
+
+            await database.Score.create({
+                songid: song.id,
+                userid: user.id,
+                leagueid: req.body.league,
+                trackshape: req.body.trackshape,
+                density: req.body.density,
+                xstats: req.body.xstats,
+                iss: req.body.iss,
+                isj: req.body.isj,
+                songlength: req.body.songlength,
+                ridetime: Math.floor(new Date().getTime() / 1000),
+                goldthreshold: req.body.goldthreshold,
+                feats: req.body.feats,
+                vehicleid: req.body.vehicle,
+                score: req.body.score
+            });
+        }
+        else {
+            sendRideResponse = {
+                RESULT: {
+                    $: {
+                        status: "failed"
+                    }
+                }
+            };
         }
 
-        await database.Score.create({
-            songid: song.id,
-            userid: user.id,
-            leagueid: req.body.league,
-            trackshape: req.body.trackshape,
-            density: req.body.density,
-            xstats: req.body.xstats,
-            iss: req.body.iss,
-            isj: req.body.isj
-        });
-    }
-    else {
-        sendRideResponse = {
-            RESULT: {
-                $: {
-                    status: "failed"
-                }
-            }
-        };
-    }
-
-    console.log("Received ride on song " + req.body.artist + " - " + req.body.song + " with score of " + req.body.score);
-    res.send(builder.buildObject(sendRideResponse));
+        res.send(builder.buildObject(sendRideResponse));
+    })();
 });
 
-router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
+router.post('/game_fetchscores6_unicode.php', function (req, res, next) {
     const fetchScoresResponse = {
         RESULTS: {
             scores: [{
                 $: {
                     scoretype: 0
                 },
-                league:{
+                league: {
                     $: {
                         leagueid: 1
                     },
@@ -216,7 +223,7 @@ router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
                 $: {
                     scoretype: 1
                 },
-                league:{
+                league: {
                     $: {
                         leagueid: 1
                     },
@@ -235,7 +242,7 @@ router.post('/game_fetchscores6_unicode.php', function(req, res, next) {
                 $: {
                     scoretype: 2
                 },
-                league:{
+                league: {
                     $: {
                         leagueid: 1
                     },

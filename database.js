@@ -69,12 +69,10 @@ const Score = sequelize.define('Score', {
     primaryKey: true
   },
   songid: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+    type: DataTypes.INTEGER
   },
   userid: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+    type: DataTypes.INTEGER
   },
   leagueid: {
     type: DataTypes.INTEGER
