@@ -25,6 +25,7 @@ app.set('port', port);
 
  //modify as needed
  //of course, don't use "cheese" as a passphrase in production
+ http.createServer(app).listen(80);
  var server = https.createServer({
   key: fs.readFileSync('./key.pem'),
   cert: fs.readFileSync('./cert.pem'),

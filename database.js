@@ -101,9 +101,6 @@ const Score = sequelize.define('Score', {
   songlength: {
     type: DataTypes.INTEGER
   },
-  trafficcount: {
-    type: DataTypes.INTEGER
-  },
   goldthreshold: {
     type: DataTypes.INTEGER
   },

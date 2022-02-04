@@ -4,7 +4,7 @@ var xml2js = require('xml2js');
 var router = express.Router();
 const builder = new xml2js.Builder();
 const database = require('../database');
-const { Op } = require('sequelize');
+const { Op, Model } = require('sequelize');
 
 router.post('/game_AttemptLogin_unicodepub64.php', function (req, res, next) {
     res.contentType('text/html');
@@ -198,9 +198,67 @@ router.post('/game_sendride25.php', function (req, res, next) {
 });
 
 router.post('/game_fetchscores6_unicode.php', function (req, res, next) {
-    const fetchScoresResponse = {
-        RESULTS: {
-            scores: [{
+    (async function () {
+        var casualScores = await database.Score.findAll({
+            where: {
+                [Op.and]: [
+                    { songid: req.body.songid },
+                    { leagueid: 0 }
+                ]
+            },
+            order: [['score', 'DESC']],
+            limit: 11
+        });
+        var proScores = await database.Score.findAll({
+            where: {
+                [Op.and]: [
+                    { songid: req.body.songid },
+                    { leagueid: 1 }
+                ]
+            },
+            order: [['score', 'DESC']],
+            limit: 11
+        });
+        var eliteScores = await database.Score.findAll({
+            where: {
+                [Op.and]: [
+                    { songid: req.body.songid },
+                    { leagueid: 2 }
+                ]
+            },
+            order: [['score', 'DESC']],
+            limit: 11
+        });
+
+        var fullScoreArray = [];
+        for (const score of casualScores) {
+            var user = await database.User.findByPk(score.userid);
+
+            fullScoreArray.push({
+                $: {
+                    scoretype: 0
+                },
+                league: {
+                    $: {
+                        leagueid: 0
+                    },
+                    ride: {
+                        username: user.username,
+                        vehicleid: score.vehicleid,
+                        score: score.score,
+                        ridetime: score.ridetime,
+                        feats: score.feats,
+                        songlength: score.songlength,
+                        trafficcount: 1 //TODO: Figure out how to calculate traffic count
+                    }
+                }
+            });
+        }
+
+        for (const score of proScores) {
+            var user = await database.User.findByPk(score.userid);
+
+            fullScoreArray.push({
                 $: {
                     scoretype: 0
                 },
@@ -209,58 +267,57 @@ router.post('/game_fetchscores6_unicode.php', function (req, res, next) {
                         leagueid: 1
                     },
                     ride: {
-                        username: "scoretype_0",
-                        vehicleid: 1,
-                        score: 6999999,
-                        ridetime: 1592413531,
-                        feats: "Match11",
-                        songlength: 23844,
-                        trafficcount: 179792
+                        username: user.username,
+                        vehicleid: score.vehicleid,
+                        score: score.score,
+                        ridetime: score.ridetime,
+                        feats: score.feats,
+                        songlength: score.songlength,
+                        trafficcount: 1 //TODO: Figure out how to calculate traffic count
                     }
                 }
-            },
-            {
-                $: {
-                    scoretype: 1
-                },
-                league: {
-                    $: {
-                        leagueid: 1
-                    },
-                    ride: {
-                        username: "scoretype_1",
-                        vehicleid: 1,
-                        score: 6999999,
-                        ridetime: 1592413531,
-                        feats: "Match11",
-                        songlength: 23844,
-                        trafficcount: 179792
-                    }
-                }
-            },
-            {
-                $: {
-                    scoretype: 2
-                },
-                league: {
-                    $: {
-                        leagueid: 1
-                    },
-                    ride: {
-                        username: "scoretype_2",
-                        vehicleid: 1,
-                        score: 6999999,
-                        ridetime: 1592413531,
-                        feats: "Match11",
-                        songlength: 23844,
-                        trafficcount: 179792
-                    }
-                }
-            }]
+            });
         }
-    };
 
-    res.send(builder.buildObject(fetchScoresResponse));
+        for (const score of eliteScores) {
+            var user = await database.User.findByPk(score.userid);
+
+            fullScoreArray.push({
+                $: {
+                    scoretype: 0
+                },
+                league: {
+                    $: {
+                        leagueid: 2
+                    },
+                    ride: {
+                        username: user.username,
+                        vehicleid: score.vehicleid,
+                        score: score.score,
+                        ridetime: score.ridetime,
+                        feats: score.feats,
+                        songlength: score.songlength,
+                        trafficcount: score.rideid
+                    }
+                }
+            });
+        }
+
+        const fetchScoresResponse = {
+            RESULTS: {
+                scores: fullScoreArray
+            }
+        };
+
+        res.send(builder.buildObject(fetchScoresResponse));
+    })();
+});
+
+router.post('/game_fetchtrackshape2.php', function (req, res, next) {
+    (async function () {
+        const score = await database.Score.findByPk(req.body.ridd);
+        res.send(score.trackshape);
+    })();
 });
 
 module.exports = router;
