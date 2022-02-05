@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 app.use('/as', as1apiRouter);
-//Why is this a thing
+//Damn you Dylan
 app.use('//as', as1apiRouter);
 
 // catch 404 and forward to error handler

@@ -98,7 +98,7 @@ router.post('/game_fetchsongid_unicodePB.php', function (req, res, next) {
         var searchString = 'track:' + req.body.song + ' artist:' + req.body.artist;
         if (song == null) {
             apiResult = await spotifyApi.searchTracks(searchString, { limit: 1, locale: 'en_US' });
-            console.log('Search for ' + searchString + ' returned ' + result.body.tracks.total + ' tracks');
+            console.log('Search for ' + searchString + ' returned ' + apiResult.body.tracks.total + ' tracks');
         }
 
         if (song == null) {
