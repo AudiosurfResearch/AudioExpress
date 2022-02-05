@@ -94,19 +94,11 @@ router.post('/game_fetchsongid_unicodePB.php', function (req, res, next) {
             }
         });
 
-        var apiID;
-        var apiTitle;
-        var apiArtists;
-        var apiCover;
+        var apiResult;
         var searchString = 'track:' + req.body.song + ' artist:' + req.body.artist;
         if (song == null) {
-            var result = await spotifyApi.searchTracks(searchString, { limit: 1, locale: 'en_US' });
+            apiResult = await spotifyApi.searchTracks(searchString, { limit: 1, locale: 'en_US' });
             console.log('Search for ' + searchString + ' returned ' + result.body.tracks.total + ' tracks');
-            apiID = result.body.tracks.items[0].id;
-            apiTitle = result.body.tracks.items[0].name;
-            apiArtists = result.body.tracks.items[0].artists.map(artist => artist.name).join(", ");
-            apiCover = result.body.tracks.items[0].album.images[0].url;
-            console.log('Spotify full title: ' + apiTitle + ' - ' + apiArtists);
         }
 
         if (song == null) {
@@ -114,10 +106,10 @@ router.post('/game_fetchsongid_unicodePB.php', function (req, res, next) {
                 song = await database.Song.create({
                     title: req.body.song,
                     artist: req.body.artist,
-                    spotifyid: apiID,
-                    spotifytitle: apiTitle,
-                    spotifyartists: apiArtists,
-                    coverurl: apiCover
+                    spotifyid: apiResult.body.tracks.items[0].id,
+                    spotifytitle: apiResult.body.tracks.items[0].name,
+                    spotifyartists: apiResult.body.tracks.items[0].artists.map(artist => artist.name).join(", "),
+                    coverurl: apiResult.body.tracks.items[0].album.images[0].url
                 });
             }
             else {
