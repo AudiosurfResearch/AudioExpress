@@ -4,17 +4,32 @@ var xml2js = require('xml2js');
 var router = express.Router();
 const builder = new xml2js.Builder();
 const database = require('../database');
-const { Op, Model } = require('sequelize');
+const { Op, Model, DataTypes } = require('sequelize');
+let dotenv = require('dotenv').config();
+var SpotifyWebApi = require('spotify-web-api-node');
+var spotifyApi = new SpotifyWebApi({
+    clientId: process.env.SPOTIFY_CLIENT_ID,
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+    redirectUri: process.env.SPOTIFY_REDIRECT_URI
+});
+
+function refreshSpotifyToken() {
+    spotifyApi.clientCredentialsGrant().then(
+        function (data) {
+            console.log("Spotify access token: " + data.body['access_token']);
+            console.log('The access token expires in ' + data.body['expires_in']);
+            // Save the access token so that it's used in future calls
+            spotifyApi.setAccessToken(data.body['access_token']);
+        },
+        function (err) {
+            console.log("Failed to obtain Spotify token: " + err)
+        }
+    );
+}
+refreshSpotifyToken();
+tokenRefreshInterval = setInterval(refreshSpotifyToken, 1000 * 60 * 60);
 
 router.post('/game_AttemptLogin_unicodepub64.php', function (req, res, next) {
-    res.contentType('text/html');
-    res.charset = "utf-8";
-    res.connection.setKeepAlive(false);
-    res.shouldKeepAlive = false;
-
-    console.log(req.rawTrailers);
-    //TODO: replace hardcoded values with values from a proper database, etc.
-    //We're gonna need proper auth too
     const statusString = require('crypto').createHash('md5').update("ntlr78ouqkutfc" + req.body.loginorig + "47ourol9oux").digest("hex");
     (async function () {
         console.log("Attempting login for user " + req.body.email);
@@ -62,19 +77,55 @@ router.post('/game_fetchsongid_unicodePB.php', function (req, res, next) {
     (async function () {
         var song = await database.Song.findOne({
             where: {
-                [Op.and]: [
-                    { artist: req.body.artist },
-                    { title: req.body.song }
+                [Op.or]: [
+                    {
+                        [Op.and]: [
+                            { artist: req.body.artist },
+                            { title: req.body.song }
+                        ]
+                    },
+                    {
+                        [Op.and]: [
+                            { spotifyartists: req.body.artist },
+                            { spotifytitle: req.body.song }
+                        ]
+                    }
                 ]
             }
         });
 
+        var apiID;
+        var apiTitle;
+        var apiArtists;
+        var apiCover;
+        var searchString = 'track:' + req.body.song + ' artist:' + req.body.artist;
         if (song == null) {
-            song = await database.Song.create({
-                title: req.body.song,
-                artist: req.body.artist,
-                //TODO: Add musicbrainzid
-            });
+            var result = await spotifyApi.searchTracks(searchString, { limit: 1, locale: 'en_US' });
+            console.log('Search for ' + searchString + ' returned ' + result.body.tracks.total + ' tracks');
+            apiID = result.body.tracks.items[0].id;
+            apiTitle = result.body.tracks.items[0].name;
+            apiArtists = result.body.tracks.items[0].artists.map(artist => artist.name).join(", ");
+            apiCover = result.body.tracks.items[0].album.images[0].url;
+            console.log('Spotify full title: ' + apiTitle + ' - ' + apiArtists);
+        }
+
+        if (song == null) {
+            if (apiID != null) {
+                song = await database.Song.create({
+                    title: req.body.song,
+                    artist: req.body.artist,
+                    spotifyid: apiID,
+                    spotifytitle: apiTitle,
+                    spotifyartists: apiArtists,
+                    coverurl: apiCover
+                });
+            }
+            else {
+                song = await database.Song.create({
+                    title: req.body.song,
+                    artist: req.body.artist
+                });
+            }
         }
 
         var pb = await database.Score.findOne({

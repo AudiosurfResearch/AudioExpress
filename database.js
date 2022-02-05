@@ -1,35 +1,35 @@
 const { Sequelize, DataTypes, Model } = require('sequelize');
 
 const sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: 'audioexpress.sqlite'
+  dialect: 'sqlite',
+  storage: 'audioexpress.sqlite'
 });
 exports.sequelize = sequelize;
 
 const User = sequelize.define('User', {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
-    },
-    username: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    steamid64: {
-      type: DataTypes.INTEGER
-    },
-    steamid32: {
-      type: DataTypes.INTEGER
-    },
-    locationid: {
-      type: DataTypes.INTEGER
-    },
-    gamepassword: {
-      type: DataTypes.STRING
-    }
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  username: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  steamid64: {
+    type: DataTypes.INTEGER
+  },
+  steamid32: {
+    type: DataTypes.INTEGER
+  },
+  locationid: {
+    type: DataTypes.INTEGER
+  },
+  gamepassword: {
+    type: DataTypes.STRING
+  }
 }, {
-    // Other model options go here
+  // Other model options go here
 });
 exports.User = User;
 
@@ -54,8 +54,26 @@ const Song = sequelize.define('Song', {
       throw new Error('Do not try to set the `fullTitle` value!');
     }
   },
-  musicbrainzid: {
+  spotifyid: {
     type: DataTypes.STRING
+  },
+  spotifytitle: {
+    type: DataTypes.STRING
+  },
+  spotifyartists: {
+    type: DataTypes.TEXT
+  },
+  coverurl: {
+    type: DataTypes.TEXT
+  },
+  fullSpotifyTitle: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      return `${this.spotifyartists} - ${this.spotifytitle}`;
+    },
+    set(value) {
+      throw new Error('Do not try to set the `fullTitle` value!');
+    }
   }
 }, {
   // Other model options go here
@@ -104,7 +122,7 @@ const Score = sequelize.define('Score', {
   goldthreshold: {
     type: DataTypes.INTEGER
   },
-  iss: { 
+  iss: {
     type: DataTypes.INTEGER
   },
   isj: {
@@ -118,7 +136,7 @@ exports.Score = Score;
 //Song.hasMany(Score, { foreignKey: 'songid' });
 //Score.belongsTo(Song);
 
-(async function() {
+(async function () {
   await User.sync();
   await Song.sync();
   await Score.sync();
